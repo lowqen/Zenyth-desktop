@@ -4,7 +4,7 @@
   "version": "1.0.3",
   "identifier": "dev.gomoku.zenyth.desktop",
   "build": {
-    "frontendDist": "../../dist",
+    "frontendDist": "../web/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
@@ -81,7 +81,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyNjQ2QzIxMjFDOEM0ODEKUldTQnhNZ2hJV3hrOHJiNHFmNUNJWlU1ZDdWZlkxYjk4T1VYM2NZY1Z0ODYyMlUzaVZvOUNzV0wK",
       "endpoints": [
-        "https://github.com/lowqen/Zenyth-web/releases/download/desktop-latest/latest.json"
+        "https://github.com/lowqen/Zenyth-desktop/releases/download/desktop-latest/latest.json"
       ],
       "windows": { "installMode": "passive" }
     }

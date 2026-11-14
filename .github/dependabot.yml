@@ -1,0 +1,41 @@
+# 의존성 업데이트 — 주 1회 월요일 아침(KST). 패치 · 마이너는 생태계마다 묶음 PR 하나, 메이저는 하나씩.
+#
+# cargo 의 glib(gtk-rs 0.18)은 Tauri 가 **리눅스에서만** 쓰는 GTK 바인딩으로 들어온다. 이 셸은 Windows 로만
+# 빌드하므로 컴파일되지 않는다 — 그 계열 알림은 Tauri 가 gtk-rs 를 올릴 때까지 «코드가 쓰이지 않음»으로 둔다.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
