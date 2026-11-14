@@ -8,12 +8,12 @@
 - 자동 업데이트(서명 검증) · 포터블판
 
 2026-11-14 에 Zenyth-web 저장소의 `desktop/` 에서 나왔다. 그 폴더의 커밋 이력은 그대로 따라왔다.
+옛 데스크톱(Yixin)과 엔진의 골든 녹취(`baseline/`)는 웹의 엔진 시험이 읽으므로 Zenyth-web 의 `tools/yixin-golden/` 으로 갔다.
 
 ## 구조
 
 ```
 src-tauri/        셸(Rust) — main.rs(창 · 파일 연결 · 업데이트) · engine.rs(네이티브 엔진 · 원격) · settings.rs
-baseline/         데스크톱 Z0 — 옛 데스크톱(Yixin.exe)과 엔진이 주고받은 줄의 골든 녹취
 tests/            셸 설정 ↔ 웹 원본 대조(헤더 · 기보 형식 · 엔진 빌드 id · 업데이트 주소 · 동봉 엔진 판)
 web/              (커밋하지 않음) lowqen/Zenyth-web — CI 가 받아 화면을 굽는다
 ```
