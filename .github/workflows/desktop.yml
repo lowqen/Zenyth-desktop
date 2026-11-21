@@ -35,12 +35,17 @@ on:
     # 태그 푸시에는 paths 가 걸리지 않는다(GitHub 규칙) — 릴리스 태그는 언제나 돈다.
     tags: ["desktop-v*"]
   pull_request:
+  # Zenyth-web 의 desktop-dispatch.yml 이 main 의 화면이 바뀔 때 보낸다(client_payload.web_ref = 그 커밋).
+  # 빌드 · 시험 · 아티팩트까지만 — 릴리스 잡은 태그에서만 돈다.
+  repository_dispatch:
+    types: [web-main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.ref }}
+  # 웹이 깨운 빌드끼리만 서로 밀어낸다 — 이 저장소의 main 푸시 빌드를 취소하지 않게.
+  group: desktop-${{ github.event_name == 'repository_dispatch' && 'web' || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -48,7 +53,7 @@ env:
   # 바꾸면 Zenyth-web 의 src/features/settings/AboutPanel.tsx RAPFI_NATIVE_TAG 도 같이(tests/tauri-config.test.ts 가 대조).
   RAPFI_NATIVE_TAG: "250615"
   RAPFI_NATIVE_SHA256: 1a3e24024062a153ac079060ee9589a37c6bdd1ecc54fed3908793c519594e05
-  WEB_REF: ${{ inputs.web_ref || 'main' }}
+  WEB_REF: ${{ github.event.client_payload.web_ref || inputs.web_ref || 'main' }}
 
 jobs:
   build:

@@ -27,22 +27,27 @@ web/              (커밋하지 않음) lowqen/Zenyth-web — CI 가 받아 화�
 개발 기기에는 Rust · MSVC 를 깔지 않고 **CI(Windows 러너)가 빌드한다**(`.github/workflows/desktop.yml`).
 
 - `main` 푸시 · PR — 빌드와 시험만, 산출물은 Actions 아티팩트(14일)
+- Zenyth-web `main` 의 화면 변경 — 그쪽 `desktop-dispatch.yml` 이 `repository_dispatch`(`web-main`)로 깨운다.
+  그 커밋의 화면으로 빌드 · 시험만 한다(시크릿 `DESKTOP_DISPATCH_TOKEN` 은 **Zenyth-web** 쪽에 둔다)
 - 수동 실행(`workflow_dispatch`) — `web_ref` 로 화면을 구울 Zenyth-web 의 브랜치 · 태그 · 커밋을 고른다(기본 `main`)
 - `desktop-v<버전>` 태그 — 릴리스(설치판 · 서명 · 포터블)와 `desktop-latest` 의 `latest.json` 갱신
 
 버전은 `src-tauri/tauri.conf.json` 과 `src-tauri/Cargo.toml` 을 함께 올린다(시험이 대조한다).
 
-웹의 데스크톱 코드를 바꾼 뒤에는 이 저장소의 워크플로를 수동으로 돌려 셸 빌드를 확인한다 — 웹 저장소의 푸시는
-여기 CI 를 깨우지 않는다.
+웹 브랜치(PR)의 화면을 셸로 확인하려면 수동 실행에 `web_ref` 를 준다 — 자동으로 깨우는 것은 웹 `main` 뿐이다.
+웹 · 데스크톱 분기 규칙과 브라우저 미리 보기(`?desktop`)는 Zenyth-web `docs/engineering-notes.md` §13.
 
-로컬에서 설정 대조만 돌리려면:
+로컬에서 설정 대조만 돌리려면 — Zenyth-web 을 이 저장소 **옆에** 클론해 두고 `web/` 을 정션으로 잇는다
+(웹을 고치는 즉시 대조에 반영된다):
 
 ```bash
-git clone https://github.com/lowqen/Zenyth-web.git web
-pnpm --dir web install
+pnpm --dir ../Zenyth-web install
 pnpm install
+pnpm link-web      # web/ -> ../Zenyth-web (scripts/link-web.ps1, 다른 경로는 -Web)
 pnpm test
 ```
+
+옆 클론이 없으면 예전처럼 `git clone https://github.com/lowqen/Zenyth-web.git web` 으로 받아도 된다.
 
 ## 시크릿
 
