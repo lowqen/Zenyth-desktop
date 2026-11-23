@@ -7,6 +7,7 @@
 //!
 //! - 네이티브 엔진(데스크톱 Z3): 로컬 Rapfi 프로세스 · 원격 TCP 세션 — `engine.rs`.
 //! - settings.txt · settings_dev.txt 직접 읽기 · 쓰기(데스크톱 Z4) — `settings.rs`.
+//! - 라이브러리 폴더 소스(L4): 폴더의 yixindb 파일 · 사이드카 읽기 · 원자적 쓰기 · 이름 바꾸기 · OS 휴지통 — `library.rs`.
 //! - 기동 시각 기록 `boot_marks`(데스크톱 Z6) — `scripts/perf-shell.ts` 가 읽는다.
 //! - 자동 업데이트(데스크톱 Z7): `tauri-plugin-updater` — 확인 · 설치는 웹(`src/app/desktop/updater.ts`)이 부른다.
 //!   설치판(NSIS)을 띄우기 직전에 엔진 프로세스를 닫는다 — 살아 있으면 `engine/` 의 exe 를 덮어쓰지 못한다.
@@ -17,6 +18,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod engine;
+mod library;
 mod settings;
 
 use std::path::{Path, PathBuf};
@@ -150,6 +152,7 @@ fn main() {
         .manage(Pending::default())
         .manage(BootMarks::default())
         .manage(engine::Engines::default())
+        .manage(library::LibraryWrites::default())
         .invoke_handler(tauri::generate_handler![
             take_open_files,
             boot_marks,
@@ -160,7 +163,20 @@ fn main() {
             engine::engine_close,
             engine::engines_shutdown,
             settings::settings_read,
-            settings::settings_write
+            settings::settings_write,
+            library::lib_exists,
+            library::lib_list,
+            library::lib_stat,
+            library::lib_read,
+            library::lib_write_begin,
+            library::lib_write_chunk,
+            library::lib_write_commit,
+            library::lib_write_abort,
+            library::lib_remove,
+            library::lib_rename,
+            library::lib_trash,
+            library::lib_restore,
+            library::lib_purge
         ])
         .on_page_load(|webview, payload| {
             let name = match payload.event() {

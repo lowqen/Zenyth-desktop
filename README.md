@@ -14,6 +14,7 @@
 
 ```
 src-tauri/        셸(Rust) — main.rs(창 · 파일 연결 · 업데이트) · engine.rs(네이티브 엔진 · 원격) · settings.rs
+                  · library.rs(라이브러리 폴더 소스 — 원자적 쓰기 · 이름 바꾸기 · OS 휴지통)
 tests/            셸 설정 ↔ 웹 원본 대조(헤더 · 기보 형식 · 엔진 빌드 id · 업데이트 주소 · 동봉 엔진 판)
 web/              (커밋하지 않음) lowqen/Zenyth-web — CI 가 받아 화면을 굽는다
 ```
