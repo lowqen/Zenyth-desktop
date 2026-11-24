@@ -6,7 +6,7 @@
 //! - **이름은 폴더 바로 아래 하나** — 구분자 · `..` · 드라이브 · 대체 스트림(`:`)을 받지 않는다. 폴더는 절대 경로.
 //! - **쓰기는 원자적** — 같은 폴더의 `<이름>.zenyth-tmp` 에 조각을 흘려 쓰고, 끝에 `sync_all` → 바꿔 끼우기.
 //!   도중에 끊기면 본 파일은 그대로다(임시 파일은 다음 같은 쓰기가 덮는다).
-//! - **이름 바꾸기는 덮어쓰지 않는다** — 저널(`.journal`) · 엔진 백업(`.bak*` · `.<숫자>`)도 함께. 대소문자만 다른
+//! - **이름 바꾸기는 덮어쓰지 않는다** — 저널(`.journal`) · 엔진 백업(`.bak*` · `.<숫자>` · `<줄기>_bak<N>.db`)도 함께. 대소문자만 다른
 //!   이름은 임시 이름을 거쳐 두 번.
 //! - **Windows 공유 위반**(다른 프로그램 · 백신 · 색인기 · 동기화가 쥔 파일) — 짧은 간격으로 몇 번 다시 시도한다.
 //!   끝내 안 되면 `busy:` 로 시작하는 오류(웹이 «다른 프로그램이 쓰는 중» 으로 보이고 파일 이름 바꾸기를 미룬다).
@@ -129,22 +129,57 @@ fn info_of(name: String, meta: &fs::Metadata) -> FileInfo {
 }
 
 /// 엔진이 본 파일 곁에 두는 짝의 꼬리 — 웹 `source.ts` 의 `companionSuffix` 와 같은 규칙.
+/// 저널 · 백업은 `.journal` 처럼 본 이름 뒤에 붙고, 엔진 번호 백업(DB1 `makeBackupFilePath`,
+/// `<줄기>_bak<N><확장자>`)은 `_bak1.db` 처럼 줄기에 붙는다 — 붙이는 쪽은 `companion_name`.
 fn companion_suffix(base: &str, name: &str) -> Option<String> {
-    if name.len() <= base.len() || !name.is_char_boundary(base.len()) {
+    if name.len() > base.len()
+        && name.is_char_boundary(base.len())
+        && name[..base.len()].to_lowercase() == base.to_lowercase()
+    {
+        let rest = &name[base.len()..];
+        if let Some(tail) = rest.strip_prefix('.') {
+            let lower = tail.to_ascii_lowercase();
+            let digits = |s: &str| s.chars().all(|c| c.is_ascii_digit());
+            let ok = lower == "journal"
+                || (!lower.is_empty() && digits(&lower))
+                || lower.strip_prefix("bak").is_some_and(digits)
+                || lower.strip_prefix("backup").is_some_and(digits);
+            if ok {
+                return Some(rest.to_owned());
+            }
+        }
+    }
+    backup_tail(base, name)
+}
+
+/// 엔진 번호 백업의 꼬리(`_bak1.db`) — 본 파일이 `.db` 일 때만.
+fn backup_tail(base: &str, name: &str) -> Option<String> {
+    let stem = strip_db(base)?;
+    if name.len() <= stem.len() || !name.is_char_boundary(stem.len()) {
         return None;
     }
-    if name[..base.len()].to_lowercase() != base.to_lowercase() {
+    if name[..stem.len()].to_lowercase() != stem.to_lowercase() {
         return None;
     }
-    let rest = &name[base.len()..];
-    let tail = rest.strip_prefix('.')?;
-    let lower = tail.to_ascii_lowercase();
-    let digits = |s: &str| s.chars().all(|c| c.is_ascii_digit());
-    let ok = lower == "journal"
-        || (!lower.is_empty() && digits(&lower))
-        || lower.strip_prefix("bak").is_some_and(digits)
-        || lower.strip_prefix("backup").is_some_and(digits);
-    ok.then(|| rest.to_owned())
+    let rest = &name[stem.len()..];
+    let lower = rest.to_ascii_lowercase();
+    let n = lower.strip_prefix("_bak")?.strip_suffix(".db")?;
+    (!n.is_empty() && n.chars().all(|c| c.is_ascii_digit())).then(|| rest.to_owned())
+}
+
+/// `.db` 를 뗀 줄기(대소문자 무시).
+fn strip_db(name: &str) -> Option<&str> {
+    let cut = name.len().checked_sub(3)?;
+    (name.is_char_boundary(cut) && name[cut..].eq_ignore_ascii_case(".db")).then(|| &name[..cut])
+}
+
+/// 짝 꼬리를 본 이름에 붙인다 — 웹 `withTail`.
+fn companion_name(base: &str, tail: &str) -> String {
+    if tail.starts_with('_') {
+        format!("{}{tail}", strip_db(base).unwrap_or(base))
+    } else {
+        format!("{base}{tail}")
+    }
 }
 
 fn companions(dir: &Path, base: &str) -> Vec<String> {
@@ -309,7 +344,7 @@ pub async fn lib_rename(dir: String, from: String, to: String) -> Result<(), Str
     let tails = companions(&d, &from);
     if !case_only {
         for t in std::iter::once(String::new()).chain(tails.iter().cloned()) {
-            let p = d.join(format!("{to}{t}"));
+            let p = d.join(companion_name(&to, &t));
             if p.exists() {
                 return Err(format!("exists: {}", p.display()));
             }
@@ -317,10 +352,10 @@ pub async fn lib_rename(dir: String, from: String, to: String) -> Result<(), Str
     }
     let mut done: Vec<(PathBuf, PathBuf)> = Vec::new();
     for t in std::iter::once(String::new()).chain(tails.into_iter()) {
-        let a = d.join(format!("{from}{t}"));
-        let b = d.join(format!("{to}{t}"));
+        let a = d.join(companion_name(&from, &t));
+        let b = d.join(companion_name(&to, &t));
         let step = if case_only {
-            let mid = d.join(format!("{from}{t}{RENAME_SUFFIX}"));
+            let mid = d.join(format!("{}{RENAME_SUFFIX}", companion_name(&from, &t)));
             move_no_replace(&a, &mid).and_then(|_| {
                 move_no_replace(&mid, &b).inspect_err(|_| {
                     let _ = fs::rename(&mid, &a);
@@ -346,7 +381,7 @@ pub async fn lib_trash(dir: String, name: String) -> Result<(), String> {
     let d = dir_of(&dir)?;
     let p = path_of(&dir, &name)?;
     let mut paths = vec![p.clone()];
-    paths.extend(companions(&d, &name).into_iter().map(|t| d.join(format!("{name}{t}"))));
+    paths.extend(companions(&d, &name).into_iter().map(|t| d.join(companion_name(&name, &t))));
     for q in paths {
         // 셸 휴지통 API 의 오류는 OS 코드로 오지 않는다 — 다른 프로그램이 쥔 순간을 넘기려 몇 번만 다시 시도한다.
         let mut last = String::new();
@@ -454,6 +489,14 @@ mod tests {
         assert_eq!(companion_suffix("a.db", "a.db.tmp"), None);
         assert_eq!(companion_suffix("a.db", "a.dbx"), None);
         assert_eq!(companion_suffix("a.db", "a.db"), None);
+        // 엔진 번호 백업(DB1): <줄기>_bak<N>.db
+        assert_eq!(companion_suffix("a.db", "a_bak1.db").as_deref(), Some("_bak1.db"));
+        assert_eq!(companion_suffix("연구.db", "연구_BAK12.db").as_deref(), Some("_BAK12.db"));
+        assert_eq!(companion_suffix("a.db", "ab_bak1.db"), None);
+        assert_eq!(companion_suffix("a.db", "a_bak.db"), None);
+        assert_eq!(companion_suffix("a.txt", "a_bak1.txt"), None);
+        assert_eq!(companion_name("b.db", "_bak1.db"), "b_bak1.db");
+        assert_eq!(companion_name("b.db", ".journal"), "b.db.journal");
     }
 
     #[test]
@@ -463,6 +506,7 @@ mod tests {
         fs::create_dir_all(&d).unwrap();
         fs::write(d.join("a.db"), b"base").unwrap();
         fs::write(d.join("a.db.journal"), b"j").unwrap();
+        fs::write(d.join("a_bak1.db"), b"k").unwrap();
         fs::write(d.join("taken.db"), b"x").unwrap();
         let dir = d.to_string_lossy().into_owned();
         let rt = tauri::async_runtime::block_on(lib_rename(dir.clone(), "a.db".into(), "taken.db".into()));
@@ -470,7 +514,9 @@ mod tests {
         tauri::async_runtime::block_on(lib_rename(dir.clone(), "a.db".into(), "b.db".into())).unwrap();
         assert_eq!(fs::read(d.join("b.db")).unwrap(), b"base");
         assert_eq!(fs::read(d.join("b.db.journal")).unwrap(), b"j");
+        assert_eq!(fs::read(d.join("b_bak1.db")).unwrap(), b"k");
         assert!(!d.join("a.db").exists());
+        assert!(!d.join("a_bak1.db").exists());
         tauri::async_runtime::block_on(lib_rename(dir.clone(), "b.db".into(), "B.db".into())).unwrap();
         let names: Vec<String> = fs::read_dir(&d)
             .unwrap()
@@ -479,6 +525,7 @@ mod tests {
             .collect();
         assert!(names.contains(&"B.db".to_owned()), "{names:?}");
         assert!(names.contains(&"B.db.journal".to_owned()), "{names:?}");
+        assert!(names.contains(&"B_bak1.db".to_owned()), "{names:?}");
         let _ = fs::remove_dir_all(&d);
     }
 }
